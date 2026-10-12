@@ -29,6 +29,8 @@ RUN = HOME / "Library/Application Support/Steam/compatibilitytools.d/notproton/r
 LIBRARY = SUPPORT / "aion2-compat/compat_cpuid.dylib"
 RUNNER_MFPLAT = SUPPORT / "runners/current/lib/wine/x86_64-windows/mfplat.dll"
 PATCHED_MFPLAT = SUPPORT / "aion2-compat/wine/mfplat.dll"
+PREFIX_MFPLAT = HOME / "Library/Application Support/Steam/steamapps/compatdata/3393110/pfx/drive_c/windows/system32/mfplat.dll"
+ORIGINAL_MFPLAT = SUPPORT / "aion2-compat/mfplat.original.dll"
 BEGIN = "# BEGIN AION 2 Rosetta compatibility fix"
 END = "# END AION 2 Rosetta compatibility fix"
 ANCHOR = 'export WINEDEBUG="${WINEDEBUG:-err+all,fixme-all}"'
@@ -77,12 +79,17 @@ fi
 # END AION 2 software video decoding test"""
 DXGI_BEGIN = "# BEGIN AION 2 Wine media DXGI workaround"
 DXGI_END = "# END AION 2 Wine media DXGI workaround"
-DXGI_BLOCK = f"""{DXGI_BEGIN}
+PREVIOUS_DXGI_BLOCK = f"""{DXGI_BEGIN}
 if [ "$app_id" = 3393110 ]; then
   aion2_wine_dlls="$HOME/Library/Application Support/notproton/aion2-compat/wine"
   if [ -f "$aion2_wine_dlls/mfplat.dll" ]; then
     export WINEDLLPATH="$aion2_wine_dlls:$WINEDLLPATH"
   fi
+fi
+{DXGI_END}"""
+DXGI_BLOCK = f"""{DXGI_BEGIN}
+if [ "$app_id" = 3393110 ]; then
+  export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;mfplat=n"
 fi
 {DXGI_END}"""
 ENV_FILTER_OLD = "GST_PLUGIN_PATH|VK_DRIVER_FILES"
@@ -129,6 +136,7 @@ def edited_source(source: str, install: bool) -> str:
     source = source.replace(PREVIOUS_NATIVE_OVERLAY_BLOCK, NATIVE_OVERLAY_BLOCK)
     source = source.replace(PREVIOUS_GRAPHICS_BLOCK + "\n", "")
     source = source.replace(PREVIOUS_MEDIA_BLOCK + "\n", "")
+    source = source.replace(PREVIOUS_DXGI_BLOCK, DXGI_BLOCK)
     if ENV_FILTER_NEW in source:
         source = source.replace(ENV_FILTER_NEW, ENV_FILTER_OLD, 1)
     for begin, end, block, anchor, before in (
@@ -183,7 +191,7 @@ def main() -> None:
         print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and NATIVE_OVERLAY_BLOCK in source and DXGI_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
         print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and DXGI_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
-        print(f"Módulo de video: {'instalado' if PATCHED_MFPLAT.is_file() else 'ausente'}")
+        print(f"Módulo de video: {'instalado en el prefijo' if same_bytes(PREFIX_MFPLAT, PATCHED_MFPLAT) else 'aún sin activar'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
         return
 
@@ -211,9 +219,20 @@ def main() -> None:
         LIBRARY.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "build/compat_cpuid.dylib", LIBRARY)
         subprocess.run(["python3", str(ROOT / "patch_mfplat.py"), str(RUNNER_MFPLAT), str(PATCHED_MFPLAT)], check=True)
+        if not PREFIX_MFPLAT.is_file():
+            raise SystemExit("No existe mfplat.dll en el prefijo de AION 2.")
+        if not same_bytes(PREFIX_MFPLAT, PATCHED_MFPLAT):
+            if not same_bytes(PREFIX_MFPLAT, RUNNER_MFPLAT):
+                raise SystemExit("mfplat.dll del prefijo cambió; no se reemplazó.")
+            ORIGINAL_MFPLAT.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(PREFIX_MFPLAT, ORIGINAL_MFPLAT)
+            shutil.copy2(PATCHED_MFPLAT, PREFIX_MFPLAT)
         print("AION 2 configurado en el código y en Steam. Ya puedes abrir Steam.")
     else:
         LIBRARY.unlink(missing_ok=True)
+        if ORIGINAL_MFPLAT.is_file() and same_bytes(PREFIX_MFPLAT, PATCHED_MFPLAT):
+            shutil.copy2(ORIGINAL_MFPLAT, PREFIX_MFPLAT)
+            ORIGINAL_MFPLAT.unlink()
         PATCHED_MFPLAT.unlink(missing_ok=True)
         print("Corrección retirada de NotProton. Los archivos del juego siguen intactos.")
 
