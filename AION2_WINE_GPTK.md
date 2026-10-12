@@ -8,6 +8,7 @@ Configuración comprobada el 12 de octubre de 2026 en un MacBook Pro M3 Pro con 
 - La corrección de Wine/Rosetta de [Yuki-fox/aion2-wine-compat](https://github.com/Yuki-fox/aion2-wine-compat), revisión `71a5dcdd05fad062a7b9b7be9fea49fb0ba62db5`, se compiló localmente y se cargó solo para la aplicación Steam `3393110`. Su fuente, prueba y licencia MIT están en [`scripts/aion2-wine-gptk`](scripts/aion2-wine-gptk).
 - Steam para macOS quedó configurado para usar `notproton` solo con AION 2. La opción de lanzamiento de AION 2 es `%command% WINEDLLOVERRIDES=gameoverlayrenderer64,gameoverlayrenderer=`.
 - El lanzador establece `NOTPROTON_RETINA=0` solo para AION 2. Así Wine anuncia una resolución lógica menor en esta pantalla Retina. El instalador integra este ajuste y la corrección Wine/Rosetta en el código fuente y en `notproton.dylib`, porque Steam puede volver a generar el script `run` al arrancar.
+- Para AION 2, el lanzador omite `overlay-shim.dylib` de NotProton, pero sigue inyectando `compat_cpuid.dylib`. El registro de Wine mostraba que la capa Metal del overlay seguía cargada aunque el overlay de Steam estuviera desactivado; se excluyó como prueba de estabilidad después de dos cierres durante el juego. Aún falta confirmar si esto resuelve los cierres.
 
 ## Resultado y límite del diagnóstico
 
@@ -20,6 +21,8 @@ El módulo reconoce una secuencia concreta de instrucciones durante una transici
 Con el juego cerrado, se ajustaron los seis valores `ResolutionSizeX/Y`, `LastUserConfirmedResolutionSizeX/Y` y `RestoredWindowResolutionSizeX/Y` a `1512` y `982` en `GameUserSettings.ini` del prefijo de AION 2 (`~/Library/Application Support/Steam/steamapps/compatdata/3393110/pfx/drive_c/users/gabrielpena/AppData/Local/AION2/Saved_Steam/Config/Windows/`). Se hizo una copia del archivo antes del cambio. El usuario confirmó que el juego abrió y mostró 1512×982. Esta preferencia del juego se conserva en el prefijo; el instalador de Wine no la reescribe.
 
 Dejar **Metal HUD desactivado** en la configuración de NotProton. Al activarlo desde la interfaz se insertó `MTL_HUD_ENABLED=1` delante de `%command%` en las opciones de lanzamiento de Steam; esa forma produjo `OS Error 260` en esta versión del puente. Se quitó la variable y el juego volvió a abrir. Mantener los gráficos de NotProton en `Automatic` y probar los ajustes de calidad dentro del juego de uno en uno.
+
+Dos sesiones de monitoreo registraron un cierre del juego: en la primera, CPU máx. 90,6 °C y GPU máx. 81,5 °C; en la segunda, con Modo Juego forzado y límite de 60 FPS, CPU máx. 79,3 °C y GPU máx. 70,0 °C. macOS no registró advertencia térmica. Por eso no hay evidencia suficiente para atribuir el cierre al calor. El límite `FrameRateLimit=60.000000` quedó en `GameUserSettings.ini`, con copia del archivo anterior. Modo Juego volvió a la política automática después de la prueba.
 
 ## Reaplicar tras una actualización
 

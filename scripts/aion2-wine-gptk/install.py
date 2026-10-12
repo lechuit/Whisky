@@ -46,6 +46,10 @@ if [ "$app_id" = 3393110 ]; then
   NOTPROTON_RETINA=0
 fi
 {RETINA_END}"""
+SHIM_ANCHOR = 'if [ -f "\\$shim" ]; then'
+SHIM_MARKER = '# AION 2: skip NotProton Metal overlay shim'
+SHIM_BLOCK = f'''{SHIM_MARKER}
+if [ "\\$STEAM_COMPAT_APP_ID" != 3393110 ] && [ -f "\\$shim" ]; then'''
 
 
 def same_bytes(first: Path, second: Path) -> bool:
@@ -87,6 +91,14 @@ def edited_source(source: str, install: bool) -> str:
             source = source.replace(anchor, insertion, 1)
         elif not install and marked:
             source = source.replace(block + "\n", "", 1)
+    if SHIM_MARKER in source and SHIM_BLOCK not in source:
+        raise SystemExit("La exclusión del overlay cambió; no se modificó el lanzador.")
+    if install and SHIM_MARKER not in source:
+        if source.count(SHIM_ANCHOR) != 1:
+            raise SystemExit("No se encontró un punto único para excluir el overlay.")
+        source = source.replace(SHIM_ANCHOR, SHIM_BLOCK, 1)
+    elif not install and SHIM_MARKER in source:
+        source = source.replace(SHIM_BLOCK, SHIM_ANCHOR, 1)
     return source
 
 
@@ -112,8 +124,8 @@ def main() -> None:
 
     if args.action == "status":
         installed = RUN.read_text()
-        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source else 'sin configurar'}")
-        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed else 'sin configurar'}")
+        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
+        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
         return
