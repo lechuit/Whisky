@@ -61,12 +61,16 @@ if [ "$app_id" = 3393110 ]; then
   done
   IFS=$aion2_saved_ifs
   export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"
+fi
+{NATIVE_OVERLAY_END}"""
+PREVIOUS_NATIVE_OVERLAY_BLOCK = NATIVE_OVERLAY_BLOCK.replace(
+    '  export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"',
+    '''  export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"
   case ",$WINEDEBUG," in
     *,+seh,*) ;;
     *) export WINEDEBUG="$WINEDEBUG,+seh" ;;
-  esac
-fi
-{NATIVE_OVERLAY_END}"""
+  esac''',
+)
 SHIM_ANCHOR = 'if [ -f "\\$shim" ]; then'
 SHIM_MARKER = '# AION 2: skip NotProton Metal overlay shim'
 SHIM_BLOCK = f'''{SHIM_MARKER}
@@ -98,6 +102,7 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def edited_source(source: str, install: bool) -> str:
+    source = source.replace(PREVIOUS_NATIVE_OVERLAY_BLOCK, NATIVE_OVERLAY_BLOCK)
     for begin, end, block, anchor, before in (
         (BEGIN, END, BLOCK, ANCHOR, False),
         (RETINA_BEGIN, RETINA_END, RETINA_BLOCK, RETINA_ANCHOR, True),
