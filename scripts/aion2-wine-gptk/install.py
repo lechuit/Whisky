@@ -27,6 +27,8 @@ STEAM_APP = Path("/Applications/Steam.app")
 STEAM_DYLIB = STEAM_APP / "Contents/MacOS/notproton.dylib"
 RUN = HOME / "Library/Application Support/Steam/compatibilitytools.d/notproton/run"
 LIBRARY = SUPPORT / "aion2-compat/compat_cpuid.dylib"
+RUNNER_MFPLAT = SUPPORT / "runners/current/lib/wine/x86_64-windows/mfplat.dll"
+PATCHED_MFPLAT = SUPPORT / "aion2-compat/wine/mfplat.dll"
 BEGIN = "# BEGIN AION 2 Rosetta compatibility fix"
 END = "# END AION 2 Rosetta compatibility fix"
 ANCHOR = 'export WINEDEBUG="${WINEDEBUG:-err+all,fixme-all}"'
@@ -68,13 +70,21 @@ if [ "$app_id" = 3393110 ]; then
   export D3DM_MTL4=0
 fi
 # END AION 2 Metal translation test"""
-MEDIA_BEGIN = "# BEGIN AION 2 software video decoding test"
-MEDIA_END = "# END AION 2 software video decoding test"
-MEDIA_BLOCK = f"""{MEDIA_BEGIN}
+PREVIOUS_MEDIA_BLOCK = """# BEGIN AION 2 software video decoding test
 if [ "$app_id" = 3393110 ]; then
   export GST_PLUGIN_FEATURE_RANK=vtdec:NONE,vtdec_hw:NONE,avdec_h264:MAX,avdec_h265:MAX
 fi
-{MEDIA_END}"""
+# END AION 2 software video decoding test"""
+DXGI_BEGIN = "# BEGIN AION 2 Wine media DXGI workaround"
+DXGI_END = "# END AION 2 Wine media DXGI workaround"
+DXGI_BLOCK = f"""{DXGI_BEGIN}
+if [ "$app_id" = 3393110 ]; then
+  aion2_wine_dlls="$HOME/Library/Application Support/notproton/aion2-compat/wine"
+  if [ -f "$aion2_wine_dlls/mfplat.dll" ]; then
+    export WINEDLLPATH="$aion2_wine_dlls:$WINEDLLPATH"
+  fi
+fi
+{DXGI_END}"""
 ENV_FILTER_OLD = "GST_PLUGIN_PATH|VK_DRIVER_FILES"
 ENV_FILTER_NEW = "GST_PLUGIN_PATH|GST_PLUGIN_FEATURE_RANK|VK_DRIVER_FILES"
 PREVIOUS_NATIVE_OVERLAY_BLOCK = NATIVE_OVERLAY_BLOCK.replace(
@@ -118,18 +128,14 @@ def atomic_write(path: Path, content: str) -> None:
 def edited_source(source: str, install: bool) -> str:
     source = source.replace(PREVIOUS_NATIVE_OVERLAY_BLOCK, NATIVE_OVERLAY_BLOCK)
     source = source.replace(PREVIOUS_GRAPHICS_BLOCK + "\n", "")
-    if install:
-        if ENV_FILTER_NEW not in source:
-            if source.count(ENV_FILTER_OLD) != 1:
-                raise SystemExit("No se encontró el filtro de variables del lanzador.")
-            source = source.replace(ENV_FILTER_OLD, ENV_FILTER_NEW, 1)
-    elif ENV_FILTER_NEW in source:
+    source = source.replace(PREVIOUS_MEDIA_BLOCK + "\n", "")
+    if ENV_FILTER_NEW in source:
         source = source.replace(ENV_FILTER_NEW, ENV_FILTER_OLD, 1)
     for begin, end, block, anchor, before in (
         (BEGIN, END, BLOCK, ANCHOR, False),
         (RETINA_BEGIN, RETINA_END, RETINA_BLOCK, RETINA_ANCHOR, True),
         (NATIVE_OVERLAY_BEGIN, NATIVE_OVERLAY_END, NATIVE_OVERLAY_BLOCK, END, False),
-        (MEDIA_BEGIN, MEDIA_END, MEDIA_BLOCK, NATIVE_OVERLAY_END, False),
+        (DXGI_BEGIN, DXGI_END, DXGI_BLOCK, NATIVE_OVERLAY_END, False),
     ):
         marked = begin in source or end in source
         if marked and block not in source:
@@ -174,9 +180,10 @@ def main() -> None:
 
     if args.action == "status":
         installed = RUN.read_text()
-        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and NATIVE_OVERLAY_BLOCK in source and MEDIA_BLOCK in source and ENV_FILTER_NEW in source and SHIM_BLOCK in source else 'sin configurar'}")
-        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and MEDIA_BLOCK in installed and ENV_FILTER_NEW in installed and SHIM_BLOCK in installed else 'sin configurar'}")
+        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and NATIVE_OVERLAY_BLOCK in source and DXGI_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
+        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and DXGI_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
+        print(f"Módulo de video: {'instalado' if PATCHED_MFPLAT.is_file() else 'ausente'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
         return
 
@@ -203,9 +210,11 @@ def main() -> None:
     if install:
         LIBRARY.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "build/compat_cpuid.dylib", LIBRARY)
+        subprocess.run(["python3", str(ROOT / "patch_mfplat.py"), str(RUNNER_MFPLAT), str(PATCHED_MFPLAT)], check=True)
         print("AION 2 configurado en el código y en Steam. Ya puedes abrir Steam.")
     else:
         LIBRARY.unlink(missing_ok=True)
+        PATCHED_MFPLAT.unlink(missing_ok=True)
         print("Corrección retirada de NotProton. Los archivos del juego siguen intactos.")
 
 

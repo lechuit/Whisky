@@ -38,6 +38,10 @@ Con `D3DM_MTL4=0`, otro tutorial, «Círculos de vuelo», también mostró la de
 
 La prueba siguiente cambia únicamente la selección automática de decodificador de GStreamer para AION 2: `GST_PLUGIN_FEATURE_RANK=vtdec:NONE,vtdec_hw:NONE,avdec_h264:MAX,avdec_h265:MAX`. El paquete de GStreamer de este Wine contiene los complementos `applemedia` y `libav`. Según la [documentación de GStreamer](https://gstreamer.freedesktop.org/documentation/gstreamer/running.html), esa variable permite cambiar el rango de los decodificadores; esto prueba la ruta de software si el tutorial realmente pasa por Wine GStreamer. No se ha comprobado todavía el resultado ni se ha demostrado que el tutorial use GStreamer.
 
+El usuario confirmó un tercer tutorial con recuadro negro y bloqueo. La variable de GStreamer llegó al lanzador y `libgstlibav.dylib` estaba cargada, pero el mismo error de textura volvió a aparecer. La muestra quedó en `/tmp/aion2-tutorial-third-hang-20261012.sample.txt`. Por ello se retiró la prueba del decodificador por software.
+
+La siguiente prueba aplica solo a AION 2 el comportamiento de [Proton Wine para `MFCreateDXGIDeviceManager`](https://github.com/ValveSoftware/wine/blob/proton_11.0/dlls/mfplat/main.c): devolver `E_NOTIMPL` para evitar que Media Foundation cree el administrador de texturas DirectX al reproducir ciertos videos. El Wine Sikarugir instalado no contiene la variable de Proton. `patch_mfplat.py` copia el `mfplat.dll` original del motor y modifica únicamente la entrada de esa función; el original permanece intacto. El lanzador agrega esa copia al inicio de `WINEDLLPATH` solo para la aplicación Steam `3393110`. Es una prueba experimental: todavía no sabemos si el tutorial usa esta función ni si el cambio evita el bloqueo. El instalador retira la copia al desinstalar la corrección.
+
 ## Reaplicar tras una actualización
 
 Si Steam o NotProton reemplazan el lanzador, **cerrar Steam completamente** y ejecutar desde este repositorio:
