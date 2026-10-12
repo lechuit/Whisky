@@ -42,6 +42,13 @@ struct ConfigView: View {
 
     var body: some View {
         Form {
+            if let root = bottle.settings.customWineRoot {
+                Section("Wine runtime") {
+                    Text(root.prettyPath()).font(.caption)
+                    Text("This bottle uses a custom engine. Graphics support comes from that engine's installation.")
+                        .font(.caption)
+                }
+            }
             Section("config.title.wine", isExpanded: $wineSectionExpanded) {
                 SettingItemView(title: "config.winVersion", loadingState: winVersionLoadingState) {
                     Picker("config.winVersion", selection: $bottle.settings.windowsVersion) {
@@ -133,6 +140,7 @@ struct ConfigView: View {
                 }
                 .disabled(!bottle.settings.dxvk)
             }
+            .disabled(bottle.settings.customWineRoot != nil)
             Section("config.title.metal", isExpanded: $metalSectionExpanded) {
                 Toggle(isOn: $bottle.settings.metalHud) {
                     Text("config.metalHud")

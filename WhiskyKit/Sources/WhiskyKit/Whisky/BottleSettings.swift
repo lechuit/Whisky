@@ -95,6 +95,7 @@ public struct BottleWineConfig: Codable, Equatable {
     var windowsVersion: WinVersion = .win10
     var enhancedSync: EnhancedSync = .msync
     var avxEnabled: Bool = false
+    var customWineRoot: URL?
 
     public init() {}
 
@@ -105,6 +106,7 @@ public struct BottleWineConfig: Codable, Equatable {
         self.windowsVersion = try container.decodeIfPresent(WinVersion.self, forKey: .windowsVersion) ?? .win10
         self.enhancedSync = try container.decodeIfPresent(EnhancedSync.self, forKey: .enhancedSync) ?? .msync
         self.avxEnabled = try container.decodeIfPresent(Bool.self, forKey: .avxEnabled) ?? false
+        self.customWineRoot = try container.decodeIfPresent(URL.self, forKey: .customWineRoot)
     }
     // swiftlint:enable line_length
 }
@@ -193,6 +195,12 @@ public struct BottleSettings: Codable, Equatable {
         set { wineConfig.avxEnabled = newValue }
     }
 
+    /// An explicit runtime override for this bottle; nil preserves the bundled WhiskyWine engine.
+    public var customWineRoot: URL? {
+        get { return wineConfig.customWineRoot }
+        set { wineConfig.customWineRoot = newValue }
+    }
+
     /// The pinned programs on this bottle
     public var pins: [PinnedProgram] {
         get { return info.pins }
@@ -260,7 +268,7 @@ public struct BottleSettings: Codable, Equatable {
             return settings
         }
 
-        if settings.wineConfig.wineVersion != BottleWineConfig().wineVersion {
+        if settings.customWineRoot == nil && settings.wineConfig.wineVersion != BottleWineConfig().wineVersion {
             Logger.wineKit.warning("Bottle has a different wine version `\(settings.wineConfig.wineVersion)`")
             settings.wineConfig.wineVersion = BottleWineConfig().wineVersion
             try settings.encode(to: metadataURL)

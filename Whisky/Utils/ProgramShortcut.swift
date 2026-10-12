@@ -31,7 +31,7 @@ class ProgramShortcut {
             // First create shell script
             let script = """
             #!/bin/bash
-            \(program.generateTerminalCommand())
+            \(try program.generateTerminalCommand())
             """
             let scriptUrl = macos.appending(path: "launch")
             try script.write(to: scriptUrl,

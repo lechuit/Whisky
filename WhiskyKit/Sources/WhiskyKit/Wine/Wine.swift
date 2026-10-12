@@ -24,8 +24,14 @@ public class Wine {
     private static let dxvkFolder: URL = WhiskyWineInstaller.libraryFolder.appending(path: "DXVK")
     /// Path to the `wine64` binary
     public static let wineBinary: URL = WhiskyWineInstaller.binFolder.appending(path: "wine64")
-    /// Parth to the `wineserver` binary
-    private static let wineserverBinary: URL = WhiskyWineInstaller.binFolder.appending(path: "wineserver")
+
+    /// Resolve a bottle's explicit engine without falling back when it is missing or invalid.
+    public static func runtime(for bottle: Bottle?) throws -> WineRuntime {
+        if let root = bottle?.settings.customWineRoot {
+            return try WineRuntime(customRoot: root)
+        }
+        return .bundled
+    }
 
     /// Run a process on a executable file given by the `executableURL`
     private static func runProcess(
@@ -47,10 +53,11 @@ public class Wine {
     /// Run a `wine` process with the given arguments and environment variables returning a stream of output
     private static func runWineProcess(
         name: String? = nil, args: [String], environment: [String: String] = [:],
-        fileHandle: FileHandle?
+        fileHandle: FileHandle?, runtime: WineRuntime = .bundled
     ) throws -> AsyncStream<ProcessOutput> {
         return try runProcess(
-            name: name, args: args, environment: environment, executableURL: wineBinary,
+            name: name, args: args, environment: runtime.environment(merging: environment),
+            executableURL: runtime.wineBinary,
             fileHandle: fileHandle
         )
     }
@@ -58,10 +65,11 @@ public class Wine {
     /// Run a `wineserver` process with the given arguments and environment variables returning a stream of output
     private static func runWineserverProcess(
         name: String? = nil, args: [String], environment: [String: String] = [:],
-        fileHandle: FileHandle?
+        fileHandle: FileHandle?, runtime: WineRuntime = .bundled
     ) throws -> AsyncStream<ProcessOutput> {
         return try runProcess(
-            name: name, args: args, environment: environment, executableURL: wineserverBinary,
+            name: name, args: args, environment: runtime.environment(merging: environment),
+            executableURL: runtime.wineserverBinary,
             fileHandle: fileHandle
         )
     }
@@ -77,7 +85,7 @@ public class Wine {
         return try runWineProcess(
             name: name, args: args,
             environment: constructWineEnvironment(for: bottle, environment: environment),
-            fileHandle: fileHandle
+            fileHandle: fileHandle, runtime: try runtime(for: bottle)
         )
     }
 
@@ -92,7 +100,7 @@ public class Wine {
         return try runWineserverProcess(
             name: name, args: args,
             environment: constructWineServerEnvironment(for: bottle, environment: environment),
-            fileHandle: fileHandle
+            fileHandle: fileHandle, runtime: try runtime(for: bottle)
         )
     }
 
@@ -113,37 +121,35 @@ public class Wine {
 
     public static func generateRunCommand(
         at url: URL, bottle: Bottle, args: String, environment: [String: String]
-    ) -> String {
-        var wineCmd = "\(wineBinary.esc) start /unix \(url.esc) \(args)"
-        let env = constructWineEnvironment(for: bottle, environment: environment)
+    ) throws -> String {
+        let runtime = try runtime(for: bottle)
+        var wineCmd = "\(runtime.wineBinary.esc) start /unix \(url.esc) \(args)"
+        let env = runtime.environment(merging: constructWineEnvironment(for: bottle, environment: environment))
         for environment in env {
-            wineCmd = "\(environment.key)=\"\(environment.value)\" " + wineCmd
+            let value = environment.value.replacingOccurrences(of: "'", with: "'\\''")
+            wineCmd = "\(environment.key)='\(value)' " + wineCmd
         }
 
         return wineCmd
     }
 
-    public static func generateTerminalEnvironmentCommand(bottle: Bottle) -> String {
-        var cmd = """
-        export PATH=\"\(WhiskyWineInstaller.binFolder.path):$PATH\"
-        export WINE=\"wine64\"
-        alias wine=\"wine64\"
-        alias winecfg=\"wine64 winecfg\"
-        alias msiexec=\"wine64 msiexec\"
-        alias regedit=\"wine64 regedit\"
-        alias regsvr32=\"wine64 regsvr32\"
-        alias wineboot=\"wine64 wineboot\"
-        alias wineconsole=\"wine64 wineconsole\"
-        alias winedbg=\"wine64 winedbg\"
-        alias winefile=\"wine64 winefile\"
-        alias winepath=\"wine64 winepath\"
-        """
-
-        let env = constructWineEnvironment(for: bottle, environment: constructWineEnvironment(for: bottle))
-        for environment in env {
-            cmd += "\nexport \(environment.key)=\"\(environment.value)\""
+    public static func generateTerminalEnvironmentCommand(bottle: Bottle) throws -> String {
+        let runtime = try runtime(for: bottle)
+        let binary = runtime.wineBinary.lastPathComponent
+        let binPath = runtime.binFolder.path.replacingOccurrences(of: "'", with: "'\\''")
+        var cmd = "export PATH='\(binPath)':\"$PATH\""
+        cmd += "\nexport WINE=\"\(binary)\""
+        for command in ["wine", "winecfg", "msiexec", "regedit", "regsvr32",
+                        "wineboot", "wineconsole", "winedbg", "winefile", "winepath"] {
+            let arguments = command == "wine" ? binary : binary + " " + command
+            cmd += "\nalias \(command)=\"\(arguments)\""
         }
-
+        let env = runtime.environment(merging: constructWineEnvironment(for: bottle))
+        for environment in env {
+            // Shell exports must not interpolate dollar signs, command substitutions or quotes in paths.
+            let value = environment.value.replacingOccurrences(of: "'", with: "'\\''")
+            cmd += "\nexport \(environment.key)='\(value)'"
+        }
         return cmd
     }
 
@@ -180,7 +186,8 @@ public class Wine {
             environment = constructWineEnvironment(for: bottle, environment: environment)
         }
 
-        for await output in try runWineProcess(args: args, environment: environment, fileHandle: fileHandle) {
+        for await output in try runWineProcess(args: args, environment: environment,
+                                              fileHandle: fileHandle, runtime: try runtime(for: bottle)) {
             switch output {
             case .started, .terminated:
                 break
@@ -192,8 +199,8 @@ public class Wine {
         return result.joined()
     }
 
-    public static func wineVersion() async throws -> String {
-        var output = try await runWine(["--version"], bottle: nil)
+    public static func wineVersion(bottle: Bottle? = nil) async throws -> String {
+        var output = try await runWine(["--version"], bottle: bottle)
         output.replace("wine-", with: "")
 
         // Deal with WineCX version names
@@ -209,12 +216,20 @@ public class Wine {
     }
 
     public static func killBottle(bottle: Bottle) throws {
+        _ = try runtime(for: bottle)
         Task.detached(priority: .userInitiated) {
-            try await runWineserver(["-k"], bottle: bottle)
+            do {
+                try await runWineserver(["-k"], bottle: bottle)
+            } catch {
+                Logger.wineKit.error("Failed to stop bottle: \(error)")
+            }
         }
     }
 
     public static func enableDXVK(bottle: Bottle) throws {
+        guard bottle.settings.customWineRoot == nil else {
+            throw WineRuntimeError.bundledDXVKWithCustomRuntime
+        }
         try FileManager.default.replaceDLLs(
             in: bottle.url.appending(path: "drive_c").appending(path: "windows").appending(path: "system32"),
             withContentsIn: Wine.dxvkFolder.appending(path: "x64")
@@ -264,23 +279,6 @@ enum RegistryType: String {
     case dword = "REG_DWORD"
     case qword = "REG_QWORD"
     case string = "REG_SZ"
-}
-
-extension Wine {
-    public static let logsFolder = FileManager.default.urls(
-        for: .libraryDirectory, in: .userDomainMask
-    )[0].appending(path: "Logs").appending(path: Bundle.whiskyBundleIdentifier)
-
-    public static func makeFileHandle() throws -> FileHandle {
-        if !FileManager.default.fileExists(atPath: Self.logsFolder.path) {
-            try FileManager.default.createDirectory(at: Self.logsFolder, withIntermediateDirectories: true)
-        }
-
-        let dateString = Date.now.ISO8601Format()
-        let fileURL = Self.logsFolder.appending(path: dateString).appendingPathExtension("log")
-        try "".write(to: fileURL, atomically: true, encoding: .utf8)
-        return try FileHandle(forWritingTo: fileURL)
-    }
 }
 
 extension Wine {

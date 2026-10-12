@@ -27,6 +27,8 @@ struct BottleCreationView: View {
     @State private var newBottleURL: URL = UserDefaults.standard.url(forKey: "defaultBottleLocation")
                                            ?? BottleData.defaultBottleDir
     @State private var nameValid: Bool = false
+    @State private var customWineRoot: URL?
+    @State private var runtimeError: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -61,6 +63,21 @@ struct BottleCreationView: View {
                         }
                     }
                 }
+                Section("Wine runtime") {
+                    Text(customWineRoot?.prettyPath() ?? "Bundled WhiskyWine")
+                        .font(.caption)
+                    HStack {
+                        Button("Choose custom runtime…") { selectRuntime() }
+                        if customWineRoot != nil {
+                            Button("Use bundled runtime") { customWineRoot = nil }
+                        }
+                    }
+                    Text("A custom runtime uses this new bottle only. Install its graphics libraries separately.")
+                        .font(.caption)
+                    if let runtimeError {
+                        Text(runtimeError).foregroundStyle(.red).font(.caption)
+                    }
+                }
             }
             .formStyle(.grouped)
             .navigationTitle("create.title")
@@ -87,10 +104,36 @@ struct BottleCreationView: View {
         .frame(width: ViewWidth.small)
     }
 
+    func selectRuntime() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.message = "Select the Wine folder containing bin/wine and bin/wineserver."
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            do {
+                customWineRoot = try WineRuntime(customRoot: url).root
+                runtimeError = nil
+            } catch {
+                runtimeError = error.localizedDescription
+            }
+        }
+    }
+
     func submit() {
+        guard nameValid else { return }
+        if let customWineRoot {
+            do { _ = try WineRuntime(customRoot: customWineRoot) } catch {
+                runtimeError = error.localizedDescription
+                return
+            }
+        }
         newlyCreatedBottleURL = BottleVM.shared.createNewBottle(bottleName: newBottleName,
                                                                 winVersion: newBottleVersion,
-                                                                bottleURL: newBottleURL)
+                                                                bottleURL: newBottleURL,
+                                                                customWineRoot: customWineRoot)
         dismiss()
     }
 }

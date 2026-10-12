@@ -34,7 +34,8 @@ struct Whisky: ParsableCommand {
                       Delete.self,
                       Remove.self,
                       Run.self,
-                      Shellenv.self
+                      Shellenv.self,
+                      RuntimeDescriptor.self
                       /*Install.self,
                       Uninstall.self*/])
 }
@@ -66,14 +67,22 @@ extension Whisky {
         static let configuration = CommandConfiguration(abstract: "Create a new bottle.")
 
         @Argument var name: String
+        @Option(help: "Use a separate, user-installed Wine runtime root for this new bottle.")
+        var runtimeRoot: String?
 
         mutating func run() throws {
+            let runtime = try runtimeRoot.map { try WineRuntime(customRoot: URL(filePath: $0)) }
             let bottleURL = BottleData.defaultBottleDir.appending(path: UUID().uuidString)
 
             do {
                 try FileManager.default.createDirectory(atPath: bottleURL.path(percentEncoded: false),
                                                         withIntermediateDirectories: true)
                 let bottle = Bottle(bottleUrl: bottleURL, inFlight: true)
+                bottle.settings.customWineRoot = runtime?.root
+                if runtime != nil {
+                    bottle.settings.enhancedSync = .none
+                    bottle.settings.dxvkAsync = false
+                }
                 // Should allow customisation
                 bottle.settings.windowsVersion = .win10
                 bottle.settings.name = name
@@ -192,9 +201,30 @@ extension Whisky {
                 throw ValidationError("A bottle with that name doesn't exist.")
             }
 
-            let envCmd = Wine.generateTerminalEnvironmentCommand(bottle: bottle)
+            let envCmd = try Wine.generateTerminalEnvironmentCommand(bottle: bottle)
             print(envCmd)
 
+        }
+    }
+
+    struct RuntimeDescriptor: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Validate a custom Wine runtime and print a v1 JSON descriptor for launchers."
+        )
+
+        @Argument(help: "Runtime root containing bin/wine (or wine64) and bin/wineserver.") var root: String
+        @Option var id: String = "custom-wine"
+        @Option var displayName: String = "Custom Wine"
+
+        mutating func run() throws {
+            let runtime = try WineRuntime(customRoot: URL(filePath: root))
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            let data = try encoder.encode(runtime.descriptor(id: id, displayName: displayName))
+            guard let json = String(data: data, encoding: .utf8) else {
+                throw ValidationError("Unable to encode the runtime descriptor.")
+            }
+            print(json)
         }
     }
 

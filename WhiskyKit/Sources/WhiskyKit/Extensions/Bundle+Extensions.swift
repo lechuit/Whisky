@@ -20,6 +20,11 @@ import Foundation
 
 public extension Bundle {
     static var whiskyBundleIdentifier: String {
+        #if WHISKY_LAB
+        // CLI executables may have no Bundle.main identifier; Lab builds always use the same isolated data.
+        return "com.lechuit.WhiskyLab"
+        #else
         return Bundle.main.bundleIdentifier ?? "com.isaacmarovitz.Whisky"
+        #endif
     }
 }

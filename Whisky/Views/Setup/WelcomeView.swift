@@ -75,6 +75,11 @@ struct WelcomeView: View {
                         }
                         .keyboardShortcut(.cancelAction)
                     }
+                    if rosettaInstalled && !whiskyWineInstalled {
+                        Button("Use a custom runtime") {
+                            showSetup = false
+                        }
+                    }
                     Spacer()
                     Button(rosettaInstalled && whiskyWineInstalled ? "setup.done" : "setup.next") {
                         if !rosettaInstalled {

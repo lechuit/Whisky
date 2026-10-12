@@ -28,7 +28,12 @@ struct WhiskyApp: App {
     private let updaterController: SPUStandardUpdaterController
 
     init() {
-        updaterController = SPUStandardUpdaterController(startingUpdater: true,
+        #if WHISKY_LAB
+        let startsUpdater = false
+        #else
+        let startsUpdater = true
+        #endif
+        updaterController = SPUStandardUpdaterController(startingUpdater: startsUpdater,
                                                          updaterDelegate: nil,
                                                          userDriverDelegate: nil)
     }
@@ -50,7 +55,9 @@ struct WhiskyApp: App {
         .handlesExternalEvents(matching: ["{same path of URL?}"])
         .commands {
             CommandGroup(after: .appInfo) {
+                #if !WHISKY_LAB
                 SparkleView(updater: updaterController.updater)
+                #endif
             }
             CommandGroup(before: .systemServices) {
                 Divider()

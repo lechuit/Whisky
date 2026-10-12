@@ -48,8 +48,12 @@ struct SettingsView: View {
                 }
             }
             Section("settings.updates") {
+                #if WHISKY_LAB
+                Text("Updates are managed manually for Whisky Lab.")
+                #else
                 Toggle("settings.toggle.whisky.updates", isOn: $whiskyUpdate)
                 Toggle("settings.toggle.whiskywine.updates", isOn: $checkWhiskyWineUpdates)
+                #endif
             }
         }
         .formStyle(.grouped)

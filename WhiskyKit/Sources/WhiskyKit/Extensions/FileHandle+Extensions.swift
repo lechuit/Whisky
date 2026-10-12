@@ -58,6 +58,10 @@ extension FileHandle {
     func writeInfo(for process: Process) {
         var header = String()
 
+        if let executable = process.executableURL {
+            header += "Executable: \(executable.path)\n"
+        }
+
         if let arguments = process.arguments {
             header += "Arguments: \(arguments.joined(separator: " "))\n\n"
         }
@@ -74,7 +78,9 @@ extension FileHandle {
         header += "Bottle Name: \(bottle.settings.name)\n"
         header += "Bottle URL: \(bottle.url.path)\n\n"
 
-        if let version = WhiskyWineInstaller.whiskyWineVersion() {
+        if let root = bottle.settings.customWineRoot {
+            header += "Custom Wine Root: \(root.path)\n"
+        } else if let version = WhiskyWineInstaller.whiskyWineVersion() {
             header += "WhiskyWine Version: \(version.major).\(version.minor).\(version.patch)\n"
         }
         header += "Windows Version: \(bottle.settings.windowsVersion)\n"

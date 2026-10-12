@@ -37,12 +37,15 @@ final class BottleVM: ObservableObject, @unchecked Sendable {
         return bottles.filter { $0.isAvailable == true }.count
     }
 
-    func createNewBottle(bottleName: String, winVersion: WinVersion, bottleURL: URL) -> URL {
+    func createNewBottle(
+        bottleName: String, winVersion: WinVersion, bottleURL: URL, customWineRoot: URL? = nil
+    ) -> URL {
         let newBottleDir = bottleURL.appending(path: UUID().uuidString)
 
         Task.detached {
             var bottleId: Bottle?
             do {
+                if let customWineRoot { _ = try WineRuntime(customRoot: customWineRoot) }
                 try FileManager.default.createDirectory(atPath: newBottleDir.path(percentEncoded: false),
                                                         withIntermediateDirectories: true)
                 let bottle = Bottle(bottleUrl: newBottleDir, inFlight: true)
@@ -52,10 +55,15 @@ final class BottleVM: ObservableObject, @unchecked Sendable {
                     self.bottles.append(bottle)
                 }
 
+                bottle.settings.customWineRoot = customWineRoot
+                if customWineRoot != nil {
+                    bottle.settings.enhancedSync = .none
+                    bottle.settings.dxvkAsync = false
+                }
                 bottle.settings.windowsVersion = winVersion
                 bottle.settings.name = bottleName
                 try await Wine.changeWinVersion(bottle: bottle, win: winVersion)
-                let wineVer = try await Wine.wineVersion()
+                let wineVer = try await Wine.wineVersion(bottle: bottle)
                 bottle.settings.wineVersion = SemanticVersion(wineVer) ?? SemanticVersion(0, 0, 0)
                 // Add record
                 await MainActor.run {
