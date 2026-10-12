@@ -63,6 +63,15 @@ if [ "$app_id" = 3393110 ]; then
   export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"
 fi
 {NATIVE_OVERLAY_END}"""
+ESYNC_BEGIN = "# BEGIN AION 2 esync compatibility test"
+ESYNC_END = "# END AION 2 esync compatibility test"
+ESYNC_ANCHOR = 'case "$app_id" in \'\'|*[!0-9]*) app_id=0 ;; esac'
+ESYNC_BLOCK = f"""{ESYNC_BEGIN}
+if [ "$app_id" = 3393110 ]; then
+  export WINEESYNC=0
+  echo "aion2: WINEESYNC=0" >> "$log" 2>&1 || true
+fi
+{ESYNC_END}"""
 PREVIOUS_NATIVE_OVERLAY_BLOCK = NATIVE_OVERLAY_BLOCK.replace(
     '  export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"',
     '''  export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"
@@ -146,6 +155,19 @@ def edited_source(source: str, install: bool) -> str:
     return source
 
 
+def edited_esync(source: str, enabled: bool) -> str:
+    marked = ESYNC_BEGIN in source or ESYNC_END in source
+    if marked and ESYNC_BLOCK not in source:
+        raise SystemExit("El bloque de esync cambió; no se modificó el lanzador.")
+    if enabled and not marked:
+        if source.count(ESYNC_ANCHOR) != 1:
+            raise SystemExit("No se encontró un punto único para esync.")
+        return source.replace(ESYNC_ANCHOR, ESYNC_ANCHOR + "\n" + ESYNC_BLOCK, 1)
+    if not enabled and marked:
+        return source.replace(ESYNC_BLOCK + "\n", "", 1)
+    return source
+
+
 def steam_is_running() -> bool:
     return subprocess.run(["pgrep", "-x", "steam_osx"], capture_output=True).returncode == 0
 
@@ -158,7 +180,7 @@ def sign_steam() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("install", "status", "uninstall"))
+    parser.add_argument("action", choices=("install", "status", "uninstall", "esync-off", "esync-on"))
     args = parser.parse_args()
 
     for path in (SOURCE_RUN, STEAM_DYLIB, RUN):
@@ -172,13 +194,18 @@ def main() -> None:
         print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
+        print(f"Esync para AION 2: {'desactivado (prueba)' if ESYNC_BLOCK in source and ESYNC_BLOCK in installed else 'predeterminado'}")
         return
 
     if steam_is_running():
         raise SystemExit("Cierra Steam completamente antes de instalar o retirar la corrección.")
 
-    install = args.action == "install"
+    install = args.action != "uninstall"
     revised = edited_source(source, install)
+    if args.action == "esync-off":
+        revised = edited_esync(revised, True)
+    elif args.action in ("esync-on", "uninstall"):
+        revised = edited_esync(revised, False)
     if install:
         subprocess.run(["make", "test", "all"], cwd=ROOT, check=True)
     if revised != source:
