@@ -26,6 +26,10 @@ Dos sesiones de monitoreo registraron un cierre del juego: en la primera, CPU m�
 
 Una tercera sesión, sin el overlay de NotProton y con Modo Juego en automático, también terminó durante el juego. Registró CPU máx. 85,4 °C, GPU máx. 74,4 °C, RAM máx. 15,6 GiB e intercambio de memoria de 2,7 GiB. No hubo advertencia térmica ni informe de fallo de macOS. El registro de Wine contiene varios `mmap() error Cannot allocate memory` al reservar direcciones virtuales y un `GL_INVALID_FRAMEBUFFER_OPERATION`, sin pila de fallo ni relación temporal suficiente para atribuirles el cierre. Los breadcrumbs de NCSOFT muestran que el personaje entró al mapa `100010` y siguió en juego; no registran la causa del cierre. Quedaban 3,4 GiB libres en disco. Se limpiaron solo las cachés descargables `Cache` y `Code Cache` de Chrome, con Chrome cerrado, y el espacio libre subió a 7,9 GiB. Hace falta otra sesión para comprobar si el margen de disco influía.
 
+Después se eliminaron 22 videos descargados de fondos de pantalla de macOS (9,72 GiB). Con unos 20 GiB libres, AION 2 se cerró nuevamente tras entrar al mapa `100010`. La sesión registró CPU máx. 80,4 °C, GPU máx. 70,7 °C, RAM máx. 15,3 GiB e intercambio de 2,5 GiB. No apareció informe de fallo ni mensaje concluyente al salir. El espacio insuficiente y el sobrecalentamiento quedan menos probables como causas principales, aunque esta prueba no determina la causa.
+
+El registro del lanzador reveló que `STEAM_DYLD_INSERT_LIBRARIES` aún incluía `gameoverlayrenderer.dylib` de Steam para macOS, pese a haber desactivado el overlay de Windows y omitido el shim de NotProton. La corrección siguiente filtra solo esa biblioteca para AION 2, conserva `steamloader.dylib` y `compat_cpuid.dylib`, y agrega el canal `+seh` de Wine para capturar excepciones en la próxima sesión. Todavía no hay resultado de esa prueba.
+
 ## Reaplicar tras una actualización
 
 Si Steam o NotProton reemplazan el lanzador, **cerrar Steam completamente** y ejecutar desde este repositorio:

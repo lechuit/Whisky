@@ -46,6 +46,27 @@ if [ "$app_id" = 3393110 ]; then
   NOTPROTON_RETINA=0
 fi
 {RETINA_END}"""
+NATIVE_OVERLAY_BEGIN = "# BEGIN AION 2 native Steam overlay exclusion"
+NATIVE_OVERLAY_END = "# END AION 2 native Steam overlay exclusion"
+NATIVE_OVERLAY_BLOCK = f"""{NATIVE_OVERLAY_BEGIN}
+if [ "$app_id" = 3393110 ]; then
+  aion2_libraries=
+  aion2_saved_ifs=$IFS
+  IFS=:
+  for aion2_library in $STEAM_DYLD_INSERT_LIBRARIES; do
+    case "$aion2_library" in
+      */gameoverlayrenderer.dylib) ;;
+      *) aion2_libraries="$aion2_libraries${{aion2_libraries:+:}}$aion2_library" ;;
+    esac
+  done
+  IFS=$aion2_saved_ifs
+  export STEAM_DYLD_INSERT_LIBRARIES="$aion2_libraries"
+  case ",$WINEDEBUG," in
+    *,+seh,*) ;;
+    *) export WINEDEBUG="$WINEDEBUG,+seh" ;;
+  esac
+fi
+{NATIVE_OVERLAY_END}"""
 SHIM_ANCHOR = 'if [ -f "\\$shim" ]; then'
 SHIM_MARKER = '# AION 2: skip NotProton Metal overlay shim'
 SHIM_BLOCK = f'''{SHIM_MARKER}
@@ -80,6 +101,7 @@ def edited_source(source: str, install: bool) -> str:
     for begin, end, block, anchor, before in (
         (BEGIN, END, BLOCK, ANCHOR, False),
         (RETINA_BEGIN, RETINA_END, RETINA_BLOCK, RETINA_ANCHOR, True),
+        (NATIVE_OVERLAY_BEGIN, NATIVE_OVERLAY_END, NATIVE_OVERLAY_BLOCK, END, False),
     ):
         marked = begin in source or end in source
         if marked and block not in source:
@@ -124,8 +146,8 @@ def main() -> None:
 
     if args.action == "status":
         installed = RUN.read_text()
-        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
-        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
+        print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and NATIVE_OVERLAY_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
+        print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
         return
