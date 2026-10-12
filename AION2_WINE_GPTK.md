@@ -46,6 +46,8 @@ El intento de cargar la copia del prefijo como DLL «nativa» tampoco fue válid
 
 Se probó después una copia aislada del motor Sikarugir Wine 11, primero con `mfplat.dll` modificado y luego con el original. Ambos arranques terminaron antes de abrir el juego y registraron `rosetta error: invalid selector in cs register`; por ello no se pudo evaluar el cambio de Media Foundation. La copia aislada se retiró. El módulo original de `mfplat.dll` está restaurado tanto en el motor compartido como en el prefijo de AION 2, y el lanzador volvió al Wine habitual. El juego inició de nuevo y cargó `mfplat.dll` desde el motor original. Los bloqueos de tutorial siguen sin resolver.
 
+El usuario confirmó que esta configuración restaurada volvió a entrar al juego. Una muestra tomada durante juego normal (`/tmp/aion2-normal-play-20261012.sample.txt`) también incluye hilos de Bink y Electra, además de `mfplat.dll` y `winegstreamer.dll` cargados. El registro de esta sesión funcional contiene incluso `MTLTextureDescriptor has invalid pixelFormat (0)`. Por tanto, ni la presencia de esos módulos ni ese aviso aislado distinguen el componente que causa el bloqueo. [Epic documenta](https://dev.epicgames.com/documentation/unreal-engine/media-viewer-in-unreal-engine) variables de Electra que controlan la decodificación D3D12 de video, pero no se ha comprobado que la versión de Unreal integrada en AION 2 las incluya ni que los tutoriales usen Electra. No se agregó ninguna variable experimental a la sesión funcional.
+
 ## Reaplicar tras una actualización
 
 Si Steam o NotProton reemplazan el lanzador, **cerrar Steam completamente** y ejecutar desde este repositorio:
