@@ -84,6 +84,21 @@ SHIM_ANCHOR = 'if [ -f "\\$shim" ]; then'
 SHIM_MARKER = '# AION 2: skip NotProton Metal overlay shim'
 SHIM_BLOCK = f'''{SHIM_MARKER}
 if [ "\\$STEAM_COMPAT_APP_ID" != 3393110 ] && [ -f "\\$shim" ]; then'''
+# The working route bypasses the bundle/shim and makes unsupported tutorial
+# videos fail at initialization rather than hang in Wine's media pipeline.
+DIRECT_BEGIN = "# BEGIN AION 2 raw Wine launch diagnostic"
+DIRECT_END = "# END AION 2 raw Wine launch diagnostic"
+DIRECT_ANCHOR = 'target="$1"'
+DIRECT_BLOCK = r'''# BEGIN AION 2 raw Wine launch diagnostic
+if [ "$app_id" = 3393110 ] && [ "${1##*/}" = AION2.exe ]; then
+  echo "=== AION 2 raw Wine diagnostic, bundle and steam.exe wrapper omitted ===" >> "$log"
+  export DYLD_INSERT_LIBRARIES="$STEAM_DYLD_INSERT_LIBRARIES"
+  # AION 2 diagnostic: let video initialization fail instead of entering GStreamer.
+  export WINEDLLOVERRIDES="winegstreamer=;${WINEDLLOVERRIDES}"
+  echo "aion2: winegstreamer disabled (tutorial diagnostic)" >> "$log"
+  exec "$WINELOADER" "$@" >> "$log" 2>&1
+fi
+# END AION 2 raw Wine launch diagnostic'''
 RETIRED_BLOCKS = (
     ("# BEGIN AION 2 Metal translation test", "# END AION 2 Metal translation test"),
     ("# BEGIN AION 2 software video decoding test", "# END AION 2 software video decoding test"),
@@ -131,6 +146,7 @@ def edited_source(source: str, install: bool) -> str:
     source = source.replace("GST_PLUGIN_PATH|GST_PLUGIN_FEATURE_RANK|VK_DRIVER_FILES", "GST_PLUGIN_PATH|VK_DRIVER_FILES")
     for begin, end, block, anchor, before in (
         (BEGIN, END, BLOCK, ANCHOR, False),
+        (DIRECT_BEGIN, DIRECT_END, DIRECT_BLOCK, DIRECT_ANCHOR, True),
         (RETINA_BEGIN, RETINA_END, RETINA_BLOCK, RETINA_ANCHOR, True),
         (NATIVE_OVERLAY_BEGIN, NATIVE_OVERLAY_END, NATIVE_OVERLAY_BLOCK, END, False),
     ):
@@ -192,6 +208,7 @@ def main() -> None:
         installed = RUN.read_text()
         print(f"Código fuente: {'configurado' if BLOCK in source and RETINA_BLOCK in source and NATIVE_OVERLAY_BLOCK in source and SHIM_BLOCK in source else 'sin configurar'}")
         print(f"Lanzador de Steam: {'configurado' if BLOCK in installed and RETINA_BLOCK in installed and NATIVE_OVERLAY_BLOCK in installed and SHIM_BLOCK in installed else 'sin configurar'}")
+        print(f"Arranque directo y videos omitidos: {'configurado' if DIRECT_BLOCK in source and DIRECT_BLOCK in installed else 'sin configurar'}")
         print(f"Módulo: {'instalado' if LIBRARY.is_file() else 'ausente'}")
         print(f"Biblioteca integrada: {'actual' if same_bytes(BUILT_DYLIB, STEAM_DYLIB) else 'diferente'}")
         print(f"Esync para AION 2: {'desactivado (prueba)' if ESYNC_BLOCK in source and ESYNC_BLOCK in installed else 'predeterminado'}")

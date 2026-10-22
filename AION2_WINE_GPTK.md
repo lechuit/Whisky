@@ -68,3 +68,13 @@ python3 scripts/aion2-wine-gptk/install.py uninstall
 ```
 
 La configuración previa de CrossOver y Steam se guardó en `~/Library/Application Support/aion2-gptk-rollback-20261012/`. No borrar esta carpeta hasta confirmar que el juego sigue abriendo en futuras sesiones. Los registros de lanzamiento de Steam contienen parámetros privados de autenticación; no publicarlos sin revisarlos y ocultarlos primero.
+
+## Reinstalación y prueba del 22 de octubre de 2026
+
+Tras reinstalar el juego y NotProton, el launcher terminaba con `rosetta error: invalid selector in cs register`, incluso con el módulo cargado. Se agregó una ruta exclusiva para `3393110` y `AION2.exe` que ejecuta el Wine original directamente, con `DYLD_INSERT_LIBRARIES` tomado de `STEAM_DYLD_INSERT_LIBRARIES`, omitiendo el bundle de Modo Juego y el envoltorio `steam.exe`. El usuario confirmó que entró al juego. La carga de `compat_cpuid.dylib` se confirmó mediante `DYLD_PRINT_LIBRARIES=1`.
+
+El tutorial «Tambaleo» volvió a congelarlo con el recuadro negro. El registro incluye carga de GStreamer y la aserción de Metal `invalid pixelFormat (0)`; esto no identifica una causa única. El proceso ya fue cerrado a petición del usuario, por lo que no se obtuvo una muestra nueva del bloqueo.
+
+La prueba que funcionó conserva el arranque directo y agrega `winegstreamer=;` al principio de `WINEDLLOVERRIDES`, exclusivamente en esa ruta. Busca que el video falle al inicializarse y permita seguir usando la interfaz; no es una reparación del reproductor. Se retiró `DYLD_PRINT_LIBRARIES` tras confirmar la carga del módulo. El usuario confirmó que esta prueba permitió superar el tutorial sin congelarse. Es una solución alternativa que omite la reproducción mediante GStreamer; puede afectar otros videos del juego y no demuestra estabilidad a largo plazo.
+
+El instalador del repositorio ahora integra y retira también el arranque directo y la exclusión de GStreamer. Estos cambios están en `~/Library/Caches/notproton-free/src/dylib/feats/compat_run.sh`, el script instalado y la biblioteca integrada de Steam. La copia `compat_run.sh.before-aion2-no-video-20261022` conserva el arranque directo que abrió el juego sin desactivar GStreamer. Para revertir solo esta prueba, retirar de la ruta directa la línea que antepone `winegstreamer=;` a `WINEDLLOVERRIDES` y su mensaje, y reconstruir con el instalador con Steam cerrado. La acción `uninstall` retira también este bloque; `install` vuelve a aplicar la configuración que el usuario confirmó funcional.
