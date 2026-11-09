@@ -11,7 +11,8 @@ free_runner="$HOME/Library/Application Support/notproton/runners/sikarugir-11/bi
 tool="$steam/compatibilitytools.d/notproton/run"
 prefix="$steam/steamapps/compatdata/3259780/pfx"
 game="$steam/steamapps/common/FINAL FANTASY RESONANCE/FFRS.exe"
-source_url=https://github.com/Xipzer/mac-windows-gaming.git
+source_url=https://github.com/lechuit/mac-windows-gaming.git
+source_ref=refs/heads/resonance-base
 revision=c0bbee764f4317b4bcaeea08a0fb46cb051691e7
 fork_url=https://github.com/lechuit/NotProton.git
 fork_ref=refs/heads/wine11-free-base
@@ -63,7 +64,7 @@ if ! stack_ready; then
   checkout="$(mktemp -d "${TMPDIR:-/tmp}/resonance-notproton.XXXXXX")"
   trap 'rm -rf -- "$checkout"' EXIT
   git -C "$checkout" init -q
-  git -C "$checkout" fetch -q --depth 1 "$source_url" "$revision"
+  git -C "$checkout" fetch -q --depth 1 "$source_url" "$source_ref"
   git -C "$checkout" checkout -q --detach FETCH_HEAD
   [[ "$(git -C "$checkout" rev-parse HEAD)" == "$revision" ]] || fail 'No coincide la revisión del instalador de NotProton.'
   fork_tip="$(git ls-remote --exit-code "$fork_url" "$fork_ref" | cut -f1)"
