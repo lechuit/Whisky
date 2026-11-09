@@ -158,9 +158,15 @@ def main():
             install(config, source, revised)
         except subprocess.CalledProcessError as exc:
             raise SystemExit(f'NotProton terminó con código {exc.returncode}. Revisa los registros locales del prefijo.') from None
-    print('Visual C++ x64:', 'instalado' if runtime_installed() else 'pendiente')
-    print('Bibliotecas nativas:', 'configuradas' if overrides_installed() else 'pendientes')
-    print('Retina:', 'desactivado para RESONANCE' if with_retina_disabled(config.read_text()) == config.read_text() else 'pendiente')
+    current = config.read_text()
+    runtime = runtime_installed()
+    overrides = overrides_installed()
+    retina_disabled = with_retina_disabled(current) == current
+    print('Visual C++ x64:', 'instalado' if runtime else 'pendiente')
+    print('Bibliotecas nativas:', 'configuradas' if overrides else 'pendientes')
+    print('Retina:', 'desactivado para RESONANCE' if retina_disabled else 'pendiente')
+    if action == 'install' and not all((runtime, overrides, retina_disabled)):
+        raise SystemExit('No se pudo verificar toda la configuración. Revisa los ajustes pendientes.')
 
 
 if __name__ == '__main__':

@@ -2,6 +2,30 @@
 
 Configuración para FINAL FANTASY RESONANCE (Steam App ID `3259780`) en Steam para macOS. Con estos ajustes el juego superó el aviso de Visual C++ y abrió con Retina desactivado el 8 de noviembre de 2026.
 
+## Instalación guiada desde cero
+
+Descomprime el paquete completo, o descarga la rama `wine-runtime-lab` de este fork. En un Mac con Apple Silicon y macOS 15 o posterior, abre `Instalar-RESONANCE.command`. También puedes ejecutarlo desde la carpeta descomprimida:
+
+```sh
+bash Instalar-RESONANCE.command
+```
+
+Si faltan las herramientas de compilación de Apple, el script abre su instalador. Cuando termine, vuelve a ejecutar el comando. Si faltan Steam o el puente libre, el script pide permiso y utiliza [mac-windows-gaming](https://github.com/Xipzer/mac-windows-gaming) en la revisión `c0bbee764f4317b4bcaeea08a0fb46cb051691e7` para instalar los componentes necesarios. NotProton guarda una copia de Steam, modifica y vuelve a firmar la app, y queda como herramienta predeterminada de compatibilidad para juegos de Windows. Si ya está instalado con el motor Wine 11 esperado, se reutiliza.
+
+Inicia sesión, confirma la instalación del juego en la biblioteca predeterminada y cierra Steam cuando el instalador lo solicite. El primer inicio crea el entorno de Wine; si aparece el aviso de Visual C++, ciérralo para que el instalador pueda aplicar el ajuste. El paquete contiene los scripts y esta guía. Los juegos y componentes binarios se obtienen en cada Mac.
+
+El código de NotProton se descarga del [fork `lechuit/NotProton`, rama `wine11-free-base`](https://github.com/lechuit/NotProton/tree/wine11-free-base), fijado a `5b8d18683b619b66390be8cbcffc1fbf47e45971`. Esa rama conserva el código del PR original; el instalador aplica el parche libre en el Mac. El fork protege esa copia del código. El instalador base, las descargas del motor, el puente precompilado y las firmas de Steam siguen dependiendo de sus fuentes externas.
+
+Para consultar el estado sin aplicar cambios:
+
+```sh
+bash Instalar-RESONANCE.command --status
+```
+
+### Reparación después de una actualización de Steam
+
+Si el puente dejó de funcionar tras actualizar Steam, usa `scripts/setup-notproton.sh --skip-build` desde una copia de la revisión indicada de `mac-windows-gaming`, siempre que siga disponible la compilación en la caché de NotProton. Si falta esa compilación, sigue la guía de instalación de dicho proyecto antes de volver a ejecutar el instalador de RESONANCE. La instalación guiada se detiene si detecta un puente incompleto o diferente, para que puedas elegir cómo repararlo.
+
 ## Restaurar la configuración
 
 1. Instala el juego y arráncalo una vez con NotProton para que Steam cree su prefijo de Wine. Si aparece el aviso de Visual C++, cierra el juego.
