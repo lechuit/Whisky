@@ -34,7 +34,8 @@ stack_ready() {
 steam_url() { /usr/bin/open -b com.valvesoftware.steam "$1"; }
 
 case "${1:-}" in
-  --help|-h) printf 'Uso: bash Instalar-RESONANCE.command [--status]\n'; exit 0 ;;
+  --help|-h) printf 'Uso: bash Instalar-RESONANCE.command [--base-only | --status]\n'; exit 0 ;;
+  --base-only) ;;
   --status)
     stack_ready && printf 'NotProton: archivos de integración presentes\n' || printf 'NotProton: falta instalar o reparar la integración\n'
     exec python3 "$profile" status ;;
@@ -99,6 +100,11 @@ PY
   [[ -f "$steam/config/config.vdf" ]] || fail 'Abre Steam, inicia sesión y vuelve a ejecutar este instalador.'
   bash "$checkout/install.sh" --no-heroic
   stack_ready || fail 'No se pudo confirmar la instalación de NotProton.'
+fi
+
+if [[ "${1:-}" == --base-only ]]; then
+  printf '\nBase de Steam y NotProton lista. Abre Steam y elige un juego de tu biblioteca.\n'
+  exit 0
 fi
 
 if [[ ! -f "$game" ]]; then
